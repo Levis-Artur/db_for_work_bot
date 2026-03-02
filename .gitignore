@@ -1,0 +1,9 @@
+.env
+*.log
+bin/
+dist/
+tmp/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

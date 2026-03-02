@@ -1,4 +1,4 @@
-# mvs-kb-bot
+# db_for_work_bot
 
 Telegram knowledge base bot on Go with PostgreSQL.
 

@@ -1,68 +1,75 @@
 # db_for_work_bot
 
-Telegram knowledge base bot on Go with PostgreSQL.
+Telegram knowledge base bot on Go + PostgreSQL.
 
-## Stack
+## Quick Server Deploy
 
-- Go
-- PostgreSQL
-- Docker Compose
-
-## Project Structure
-
-```text
-cmd/bot/main.go
-internal/config/config.go
-internal/db/db.go
-internal/db/queries.go
-internal/telegram/handlers.go
-internal/telegram/keyboards.go
-migrations/001_init.sql
-docker-compose.yml
-.env.example
+```bash
+git clone https://github.com/Levis-Artur/db_for_work_bot.git
+cd db_for_work_bot
+cp .env.example .env
 ```
 
-## Local Run
+Fill `.env`:
 
-1. Copy env:
+- `BOT_TOKEN`
+- `ACCESS_CODE`
+- `ADMIN_USER_ID`
+- `WEBHOOK_URL` (for webhook mode) or leave empty (polling mode)
 
-```powershell
-Copy-Item .env.example .env
+Run deploy:
+
+```bash
+chmod +x scripts/deploy.sh
+./scripts/deploy.sh
 ```
 
-2. Fill `.env` with real values (`BOT_TOKEN`, `ACCESS_CODE`, `ADMIN_USER_ID`).
+Script does:
 
-3. Start DB:
+1. Installs base dependencies (`curl`, `git`).
+2. Installs Docker if missing.
+3. Ensures Docker Compose is available.
+4. Validates `.env`.
+5. Builds and starts `db`, `migrate`, `bot`.
 
-```powershell
-docker compose up -d db
+## Local Run (Docker)
+
+```bash
+cp .env.example .env
+docker compose up -d --build
+docker compose ps
 ```
 
-4. Apply migration:
+## Services
 
-```powershell
-Get-Content migrations\001_init.sql | docker compose exec -T db psql -U kb -d kb -v ON_ERROR_STOP=1
+- `db`: PostgreSQL
+- `migrate`: applies `migrations/001_init.sql`
+- `bot`: Telegram bot
+
+## Useful Commands
+
+```bash
+docker compose logs -f bot
+docker compose logs -f db
+docker compose restart bot
+docker compose down
 ```
 
-5. Run bot:
+## Content Management
 
-```powershell
-go run ./cmd/bot/main.go
+Open SQL console:
+
+```bash
+docker compose exec db psql -U kb -d kb
 ```
 
-## Build Check
+Examples:
 
-```powershell
-go build ./...
-```
+```sql
+INSERT INTO categories(name, sort_order) VALUES ('Тема 4', 40);
 
-## First Commit And Push
+INSERT INTO articles(category_id, title, body, sort_order, is_published)
+VALUES (1, 'Нова стаття', '<b>Текст</b><br>Опис...', 20, true);
 
-```powershell
-git init
-git add .
-git commit -m "chore: initial project setup"
-git branch -M main
-git remote add origin <your-github-repo-url>
-git push -u origin main
+UPDATE articles SET is_published = false WHERE id = 1;
 ```

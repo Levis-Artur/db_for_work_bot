@@ -69,27 +69,11 @@ func (h *Handler) onMessage(m *tgbotapi.Message) {
 	if text == "/categories" || text == "/help" {
 		active, err := h.isAllowed(ctx, uid)
 		if err != nil || !active {
-			h.replyHTML(m.Chat.ID, "Доступ обмежено.<br>Введіть код: <code>/start КОД</code>")
+			h.requestAccessCode(m.Chat.ID, "🔐 Доступ обмежено. Введіть код доступу:")
 			return
 		}
 		h.showCategories(m.Chat.ID)
 		return
-	}
-	h.replyText(m.Chat.ID, "Використай /start або /categories.")
-}
-
-func (h *Handler) handleStart(ctx context.Context, m *tgbotapi.Message, uid int64, code string) {
-	if code != "" {
-		ok, err := h.db.ActivateByCode(ctx, uid, h.cfg.AccessCode, code)
-		if err != nil {
-			h.replyText(m.Chat.ID, "Помилка авторизації. Спробуйте пізніше.")
-			return
-		}
-		if !ok {
-			h.replyText(m.Chat.ID, "Невірний код доступу.")
-			return
-		}
-		h.replyText(m.Chat.ID, "Доступ підтверджено.")
 	}
 	active, err := h.isAllowed(ctx, uid)
 	if err != nil {
@@ -97,10 +81,63 @@ func (h *Handler) handleStart(ctx context.Context, m *tgbotapi.Message, uid int6
 		return
 	}
 	if !active {
-		h.replyHTML(m.Chat.ID, "Доступ обмежено.<br>Введіть код: <code>/start КОД</code>")
+		if text == "" || strings.HasPrefix(text, "/") {
+			h.requestAccessCode(m.Chat.ID, "🔐 Введіть код доступу:")
+			return
+		}
+		ok, err := h.db.ActivateByCode(ctx, uid, h.cfg.AccessCode, text)
+		if err != nil {
+			h.replyText(m.Chat.ID, "Помилка авторизації. Спробуйте пізніше.")
+			return
+		}
+		if !ok {
+			h.requestAccessCode(m.Chat.ID, "❌ Невірний код. Спробуйте ще раз:")
+			return
+		}
+		h.replyText(m.Chat.ID, "✅ Доступ підтверджено.")
+		h.showCategories(m.Chat.ID)
 		return
 	}
+	h.replyText(m.Chat.ID, "Використай /categories.")
+}
+
+func (h *Handler) handleStart(ctx context.Context, m *tgbotapi.Message, uid int64, code string) {
+	if code == "" {
+		active, err := h.isAllowed(ctx, uid)
+		if err != nil {
+			h.replyText(m.Chat.ID, "Помилка. Спробуйте пізніше.")
+			return
+		}
+		if !active {
+			h.requestAccessCode(m.Chat.ID, "🔐 Введіть код доступу:")
+			return
+		}
+		h.showCategories(m.Chat.ID)
+		return
+	}
+	ok, err := h.db.ActivateByCode(ctx, uid, h.cfg.AccessCode, code)
+	if err != nil {
+		h.replyText(m.Chat.ID, "Помилка авторизації. Спробуйте пізніше.")
+		return
+	}
+	if !ok {
+		h.requestAccessCode(m.Chat.ID, "❌ Невірний код. Спробуйте ще раз:")
+		return
+	}
+	h.replyText(m.Chat.ID, "✅ Доступ підтверджено.")
 	h.showCategories(m.Chat.ID)
+}
+
+func (h *Handler) requestAccessCode(chatID int64, text string) {
+	msg := tgbotapi.NewMessage(chatID, text)
+	msg.ReplyMarkup = tgbotapi.ForceReply{
+		ForceReply:            true,
+		Selective:             true,
+		InputFieldPlaceholder: "Код доступу",
+	}
+	if _, err := h.bot.Send(msg); err != nil {
+		log.Printf("request access code failed: %v", err)
+	}
 }
 
 func (h *Handler) isAllowed(ctx context.Context, uid int64) (bool, error) {
@@ -228,14 +265,6 @@ func (h *Handler) replyText(chatID int64, text string) {
 	msg := tgbotapi.NewMessage(chatID, text)
 	if _, err := h.bot.Send(msg); err != nil {
 		log.Printf("send text failed: %v", err)
-	}
-}
-
-func (h *Handler) replyHTML(chatID int64, htmlText string) {
-	msg := tgbotapi.NewMessage(chatID, htmlText)
-	msg.ParseMode = "HTML"
-	if _, err := h.bot.Send(msg); err != nil {
-		log.Printf("send html failed: %v", err)
 	}
 }
 

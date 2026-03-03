@@ -12,8 +12,8 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
-	"mvs-kb-bot/internal/config"
-	"mvs-kb-bot/internal/db"
+	"db_for_work_bot/internal/config"
+	"db_for_work_bot/internal/db"
 )
 
 const (
@@ -53,6 +53,9 @@ func (h *Handler) HandleUpdate(upd tgbotapi.Update) {
 }
 
 func (h *Handler) onMessage(m *tgbotapi.Message) {
+	if m.From == nil {
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
 	defer cancel()
 	uid := m.From.ID
@@ -163,7 +166,7 @@ func (h *Handler) showCategories(chatID int64) {
 }
 
 func (h *Handler) onCallback(q *tgbotapi.CallbackQuery) {
-	if q.Message == nil {
+	if q.Message == nil || q.From == nil {
 		h.answerCallback(q.ID, "No chat to reply")
 		return
 	}

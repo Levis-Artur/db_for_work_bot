@@ -27,6 +27,7 @@ Copy `.env.example` to `.env` and set:
 - `ACCESS_CODE`
 - `ADMIN_USER_ID`
 - `WEBHOOK_URL` (required only for webhook mode)
+- `WEBHOOK_SECRET` (optional but recommended in webhook mode)
 
 Default `.env.example` is prepared for Docker Compose (`DATABASE_URL` points to `db:5432`).
 
@@ -37,6 +38,10 @@ cp .env.example .env
 docker compose up -d --build
 docker compose ps
 ```
+
+If you run bot directly from host (`go run`), use:
+
+- `DATABASE_URL=postgres://kb:kb@127.0.0.1:5433/kb?sslmode=disable`
 
 ## Automated Ubuntu Deploy
 
@@ -53,6 +58,7 @@ chmod +x scripts/deploy.sh
 ## Run Modes
 
 - Webhook mode: set `WEBHOOK_URL=https://your-domain/tg/webhook`
+- Optionally set `WEBHOOK_SECRET` and configure the same secret in your reverse proxy forwarding.
 - Polling mode: leave `WEBHOOK_URL` empty
 
 ## Content Management

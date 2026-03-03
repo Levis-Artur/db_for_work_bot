@@ -3,8 +3,8 @@ package telegram
 import (
 	"fmt"
 
+	"db_for_work_bot/internal/db"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"mvs-kb-bot/internal/db"
 )
 
 func CategoriesKeyboard(cats []db.Category) tgbotapi.InlineKeyboardMarkup {
@@ -15,7 +15,7 @@ func CategoriesKeyboard(cats []db.Category) tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
-func ArticlesKeyboard(catID int64, offset, pageSize int, arts []db.Article) tgbotapi.InlineKeyboardMarkup {
+func ArticlesKeyboard(catID int64, offset, pageSize int, arts []db.ArticlePreview) tgbotapi.InlineKeyboardMarkup {
 	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(arts)+2)
 	for _, a := range arts {
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("Doc: "+a.Title, cbArtPrefix+fmt.Sprint(a.ID))))

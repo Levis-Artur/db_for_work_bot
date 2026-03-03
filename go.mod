@@ -1,4 +1,4 @@
-module mvs-kb-bot
+module db_for_work_bot
 
 go 1.23.0
 

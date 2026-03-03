@@ -16,20 +16,29 @@ run_as_root() {
   fi
 }
 
-apt_install_if_missing() {
-  local pkg="$1"
-  if dpkg -s "$pkg" >/dev/null 2>&1; then
+assert_ubuntu_like() {
+  if ! need_cmd apt-get; then
+    echo "This script currently supports Ubuntu/Debian only (apt-get required)."
+    exit 1
+  fi
+}
+
+install_packages_if_missing() {
+  local missing=()
+  for pkg in "$@"; do
+    if ! dpkg -s "$pkg" >/dev/null 2>&1; then
+      missing+=("$pkg")
+    fi
+  done
+  if [ "${#missing[@]}" -eq 0 ]; then
     return
   fi
   run_as_root apt-get update -y
-  run_as_root apt-get install -y "$pkg"
+  run_as_root apt-get install -y "${missing[@]}"
 }
 
 install_base_packages() {
-  apt_install_if_missing ca-certificates
-  apt_install_if_missing curl
-  apt_install_if_missing gnupg
-  apt_install_if_missing git
+  install_packages_if_missing ca-certificates curl gnupg git
 }
 
 install_docker() {
@@ -48,16 +57,17 @@ ensure_compose() {
   if docker compose version >/dev/null 2>&1; then
     return
   fi
-  apt_install_if_missing docker-compose-plugin
+  install_packages_if_missing docker-compose-plugin
 }
 
 ensure_env_file() {
-  if [ ! -f ".env" ]; then
-    cp .env.example .env
-    echo ".env created from .env.example"
-    echo "Fill BOT_TOKEN, ACCESS_CODE, ADMIN_USER_ID, WEBHOOK_URL in .env and run script again."
-    exit 1
+  if [ -f ".env" ]; then
+    return
   fi
+  cp .env.example .env
+  echo ".env created from .env.example"
+  echo "Fill BOT_TOKEN, ACCESS_CODE, ADMIN_USER_ID, WEBHOOK_URL, WEBHOOK_SECRET in .env and run script again."
+  exit 1
 }
 
 validate_env() {
@@ -85,6 +95,7 @@ show_status() {
 }
 
 main() {
+  assert_ubuntu_like
   install_base_packages
   install_docker
   ensure_docker_running

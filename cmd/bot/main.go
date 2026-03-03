@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"log"
@@ -14,9 +15,9 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
-	"mvs-kb-bot/internal/config"
-	"mvs-kb-bot/internal/db"
-	"mvs-kb-bot/internal/telegram"
+	"db_for_work_bot/internal/config"
+	"db_for_work_bot/internal/db"
+	"db_for_work_bot/internal/telegram"
 )
 
 func main() {
@@ -61,6 +62,13 @@ func runWebhook(ctx context.Context, bot *tgbotapi.BotAPI, h *telegram.Handler, 
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
+		if cfg.WebhookSecret != "" {
+			got := r.Header.Get("X-Telegram-Bot-Api-Secret-Token")
+			if len(got) != len(cfg.WebhookSecret) || subtle.ConstantTimeCompare([]byte(got), []byte(cfg.WebhookSecret)) != 1 {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+		}
 		defer r.Body.Close()
 		var upd tgbotapi.Update
 		if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
@@ -73,6 +81,9 @@ func runWebhook(ctx context.Context, bot *tgbotapi.BotAPI, h *telegram.Handler, 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
 		Handler:           mux,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	errCh := make(chan error, 1)
@@ -92,7 +103,7 @@ func runWebhook(ctx context.Context, bot *tgbotapi.BotAPI, h *telegram.Handler, 
 }
 
 func runPolling(ctx context.Context, bot *tgbotapi.BotAPI, h *telegram.Handler) error {
-	if _, err := bot.Request(tgbotapi.DeleteWebhookConfig{DropPendingUpdates: false}); err != nil {
+	if _, err := bot.Request(tgbotapi.DeleteWebhookConfig{DropPendingUpdates: true}); err != nil {
 		return err
 	}
 	u := tgbotapi.NewUpdate(0)

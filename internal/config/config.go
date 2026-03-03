@@ -8,21 +8,23 @@ import (
 )
 
 type Config struct {
-	BotToken    string
-	WebhookURL  string
-	ListenAddr  string
-	DatabaseURL string
-	AccessCode  string
-	AdminUserID int64
+	BotToken      string
+	WebhookURL    string
+	WebhookSecret string
+	ListenAddr    string
+	DatabaseURL   string
+	AccessCode    string
+	AdminUserID   int64
 }
 
 func MustLoad() Config {
 	c := Config{
-		BotToken:    strings.TrimSpace(os.Getenv("BOT_TOKEN")),
-		WebhookURL:  strings.TrimSpace(os.Getenv("WEBHOOK_URL")),
-		ListenAddr:  strings.TrimSpace(getenv("LISTEN_ADDR", "127.0.0.1:8080")),
-		DatabaseURL: strings.TrimSpace(os.Getenv("DATABASE_URL")),
-		AccessCode:  strings.TrimSpace(os.Getenv("ACCESS_CODE")),
+		BotToken:      strings.TrimSpace(os.Getenv("BOT_TOKEN")),
+		WebhookURL:    strings.TrimSpace(os.Getenv("WEBHOOK_URL")),
+		WebhookSecret: strings.TrimSpace(os.Getenv("WEBHOOK_SECRET")),
+		ListenAddr:    strings.TrimSpace(getenv("LISTEN_ADDR", "127.0.0.1:8080")),
+		DatabaseURL:   strings.TrimSpace(os.Getenv("DATABASE_URL")),
+		AccessCode:    strings.TrimSpace(os.Getenv("ACCESS_CODE")),
 	}
 	if v := os.Getenv("ADMIN_USER_ID"); v != "" {
 		c.AdminUserID = mustParseInt64(v)

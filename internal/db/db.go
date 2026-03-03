@@ -19,9 +19,16 @@ func New(ctx context.Context, dsn string) (*DB, error) {
 	db.SetMaxIdleConns(5)
 	db.SetConnMaxLifetime(30 * time.Minute)
 	db.SetConnMaxIdleTime(10 * time.Minute)
-	if err := db.PingContext(ctx); err != nil {
-		_ = db.Close()
-		return nil, err
+	for {
+		if err := db.PingContext(ctx); err == nil {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			_ = db.Close()
+			return nil, ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+		}
 	}
 	return &DB{db}, nil
 }

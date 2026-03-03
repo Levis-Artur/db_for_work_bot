@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS categories (
   is_active BOOLEAN NOT NULL DEFAULT true
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_categories_name ON categories(name);
+CREATE INDEX IF NOT EXISTS idx_categories_active_order ON categories(is_active, sort_order, id);
 CREATE TABLE IF NOT EXISTS articles (
   id BIGSERIAL PRIMARY KEY,
   category_id BIGINT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
@@ -24,6 +25,7 @@ CREATE TABLE IF NOT EXISTS articles (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_articles_category_title ON articles(category_id, title);
+CREATE INDEX IF NOT EXISTS idx_articles_category_published_order ON articles(category_id, is_published, sort_order, id);
 INSERT INTO categories(name, sort_order) VALUES
 ('Topic 1', 10),
 ('Topic 2', 20),

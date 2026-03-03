@@ -13,6 +13,11 @@ type Category struct {
 	Name string
 }
 
+type ArticlePreview struct {
+	ID    int64
+	Title string
+}
+
 type Article struct {
 	ID         int64
 	CategoryID int64
@@ -100,7 +105,7 @@ func (d *DB) ListCategories(ctx context.Context) ([]Category, error) {
 	return out, nil
 }
 
-func (d *DB) ListArticlesByCategory(ctx context.Context, catID int64, limit, offset int) ([]Article, error) {
+func (d *DB) ListArticlesByCategory(ctx context.Context, catID int64, limit, offset int) ([]ArticlePreview, error) {
 	if limit <= 0 {
 		limit = 10
 	}
@@ -108,7 +113,7 @@ func (d *DB) ListArticlesByCategory(ctx context.Context, catID int64, limit, off
 		offset = 0
 	}
 	rows, err := d.QueryContext(ctx, `
-		SELECT id, category_id, title, body
+		SELECT id, title
 		FROM articles
 		WHERE category_id = $1
 			AND is_published = true
@@ -119,10 +124,10 @@ func (d *DB) ListArticlesByCategory(ctx context.Context, catID int64, limit, off
 		return nil, err
 	}
 	defer rows.Close()
-	var out []Article
+	var out []ArticlePreview
 	for rows.Next() {
-		var a Article
-		if err := rows.Scan(&a.ID, &a.CategoryID, &a.Title, &a.Body); err != nil {
+		var a ArticlePreview
+		if err := rows.Scan(&a.ID, &a.Title); err != nil {
 			return nil, err
 		}
 		out = append(out, a)

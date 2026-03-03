@@ -61,6 +61,16 @@ chmod +x scripts/deploy.sh
 - Optionally set `WEBHOOK_SECRET` and configure the same secret in your reverse proxy forwarding.
 - Polling mode: leave `WEBHOOK_URL` empty
 
+## Admin panel
+
+- Command: `/admin`
+- Access: only users where `users.is_active = true` and `users.role IN ('admin', 'owner')`
+- Non-admin response: `Немає доступу`
+- Admin capabilities in Telegram:
+  - Manage categories: add, rename, enable/disable, move up/down
+  - Manage articles: pick category, add article, edit title/body, publish/unpublish, move up/down
+  - Cancel current admin input state via `Скасувати` (`adm:cancel`) or `/cancel`
+
 ## Content Management
 
 Open PostgreSQL shell:

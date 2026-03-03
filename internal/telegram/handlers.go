@@ -7,6 +7,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -29,10 +30,18 @@ type Handler struct {
 	bot *tgbotapi.BotAPI
 	db  *db.DB
 	cfg config.Config
+
+	adminMu       sync.RWMutex
+	adminSessions map[int64]AdminSession
 }
 
 func NewHandler(bot *tgbotapi.BotAPI, pg *db.DB, cfg config.Config) *Handler {
-	h := &Handler{bot: bot, db: pg, cfg: cfg}
+	h := &Handler{
+		bot:           bot,
+		db:            pg,
+		cfg:           cfg,
+		adminSessions: make(map[int64]AdminSession),
+	}
 	if cfg.AdminUserID != 0 {
 		ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
 		defer cancel()
@@ -67,12 +76,22 @@ func (h *Handler) onMessage(m *tgbotapi.Message) {
 		h.handleStart(ctx, m, uid, strings.TrimSpace(strings.TrimPrefix(text, "/start")))
 		return
 	}
+	if text == "/admin" {
+		h.handleAdminEntry(ctx, m.Chat.ID, uid)
+		return
+	}
+	if text == "/cancel" {
+		if h.handleAdminCancel(m.Chat.ID, uid) {
+			return
+		}
+	}
 	if text == "/categories" || text == "/help" {
 		active, err := h.isAllowed(ctx, uid)
 		if err != nil || !active {
 			h.requestAccessCode(m.Chat.ID, "Access is restricted. Enter access code:")
 			return
 		}
+		h.clearAdminSession(uid)
 		h.showCategories(m.Chat.ID)
 		return
 	}
@@ -99,10 +118,14 @@ func (h *Handler) onMessage(m *tgbotapi.Message) {
 		h.showCategories(m.Chat.ID)
 		return
 	}
+	if h.handleAdminMessageInput(ctx, m.Chat.ID, uid, text) {
+		return
+	}
 	h.replyText(m.Chat.ID, "Use /categories.")
 }
 
 func (h *Handler) handleStart(ctx context.Context, m *tgbotapi.Message, uid int64, code string) {
+	h.clearAdminSession(uid)
 	if code == "" {
 		active, err := h.isAllowed(ctx, uid)
 		if err != nil {
@@ -174,12 +197,16 @@ func (h *Handler) onCallback(q *tgbotapi.CallbackQuery) {
 	defer cancel()
 	uid := q.From.ID
 	chatID := q.Message.Chat.ID
+	data := q.Data
+	if strings.HasPrefix(data, cbAdmPrefix) {
+		h.onAdminCallback(ctx, q, chatID, uid)
+		return
+	}
 	active, err := h.isAllowed(ctx, uid)
 	if err != nil || !active {
 		h.answerCallback(q.ID, "No access")
 		return
 	}
-	data := q.Data
 	switch {
 	case data == cbHome:
 		h.showCategories(chatID)

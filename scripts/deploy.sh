@@ -16,9 +16,20 @@ run_as_root() {
   fi
 }
 
-install_base_packages() {
+apt_install_if_missing() {
+  local pkg="$1"
+  if dpkg -s "$pkg" >/dev/null 2>&1; then
+    return
+  fi
   run_as_root apt-get update -y
-  run_as_root apt-get install -y ca-certificates curl gnupg git
+  run_as_root apt-get install -y "$pkg"
+}
+
+install_base_packages() {
+  apt_install_if_missing ca-certificates
+  apt_install_if_missing curl
+  apt_install_if_missing gnupg
+  apt_install_if_missing git
 }
 
 install_docker() {
@@ -37,8 +48,7 @@ ensure_compose() {
   if docker compose version >/dev/null 2>&1; then
     return
   fi
-  run_as_root apt-get update -y
-  run_as_root apt-get install -y docker-compose-plugin
+  apt_install_if_missing docker-compose-plugin
 }
 
 ensure_env_file() {
@@ -57,6 +67,10 @@ validate_env() {
   fi
   if grep -qE '^ACCESS_CODE=CHANGE_ME$' .env; then
     echo "ACCESS_CODE is still placeholder in .env"
+    exit 1
+  fi
+  if grep -qE '^ADMIN_USER_ID=123456789$' .env; then
+    echo "ADMIN_USER_ID is still placeholder in .env"
     exit 1
   fi
 }

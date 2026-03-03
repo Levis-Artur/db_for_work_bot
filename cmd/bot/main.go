@@ -3,9 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -17,9 +21,11 @@ import (
 
 func main() {
 	cfg := config.MustLoad()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	dbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	pg, err := db.New(ctx, cfg.DatabaseURL)
+	pg, err := db.New(dbCtx, cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("db init: %v", err)
 	}
@@ -30,19 +36,23 @@ func main() {
 	}
 	h := telegram.NewHandler(bot, pg, cfg)
 	if strings.TrimSpace(cfg.WebhookURL) != "" {
-		runWebhook(bot, h, cfg)
+		if err := runWebhook(ctx, bot, h, cfg); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("webhook mode failed: %v", err)
+		}
 		return
 	}
-	runPolling(bot, h)
+	if err := runPolling(ctx, bot, h); err != nil {
+		log.Fatalf("polling mode failed: %v", err)
+	}
 }
 
-func runWebhook(bot *tgbotapi.BotAPI, h *telegram.Handler, cfg config.Config) {
+func runWebhook(ctx context.Context, bot *tgbotapi.BotAPI, h *telegram.Handler, cfg config.Config) error {
 	wh, err := tgbotapi.NewWebhook(cfg.WebhookURL)
 	if err != nil {
-		log.Fatalf("webhook config: %v", err)
+		return err
 	}
 	if _, err := bot.Request(wh); err != nil {
-		log.Fatalf("set webhook: %v", err)
+		return err
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
@@ -65,16 +75,39 @@ func runWebhook(bot *tgbotapi.BotAPI, h *telegram.Handler, cfg config.Config) {
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
-	log.Printf("webhook mode: listening on %s", cfg.ListenAddr)
-	log.Fatal(srv.ListenAndServe())
+	errCh := make(chan error, 1)
+	go func() {
+		log.Printf("webhook mode: listening on %s", cfg.ListenAddr)
+		errCh <- srv.ListenAndServe()
+	}()
+	select {
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(shutdownCtx)
+		return nil
+	case err := <-errCh:
+		return err
+	}
 }
 
-func runPolling(bot *tgbotapi.BotAPI, h *telegram.Handler) {
+func runPolling(ctx context.Context, bot *tgbotapi.BotAPI, h *telegram.Handler) error {
+	if _, err := bot.Request(tgbotapi.DeleteWebhookConfig{DropPendingUpdates: false}); err != nil {
+		return err
+	}
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 30
 	updates := bot.GetUpdatesChan(u)
 	log.Print("polling mode: bot started")
-	for upd := range updates {
-		h.HandleUpdate(upd)
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case upd, ok := <-updates:
+			if !ok {
+				return nil
+			}
+			h.HandleUpdate(upd)
+		}
 	}
 }

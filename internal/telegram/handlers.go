@@ -2,8 +2,6 @@ package telegram
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"html"
 	"log"
@@ -69,7 +67,7 @@ func (h *Handler) onMessage(m *tgbotapi.Message) {
 	if text == "/categories" || text == "/help" {
 		active, err := h.isAllowed(ctx, uid)
 		if err != nil || !active {
-			h.requestAccessCode(m.Chat.ID, "🔐 Доступ обмежено. Введіть код доступу:")
+			h.requestAccessCode(m.Chat.ID, "Access is restricted. Enter access code:")
 			return
 		}
 		h.showCategories(m.Chat.ID)
@@ -77,39 +75,39 @@ func (h *Handler) onMessage(m *tgbotapi.Message) {
 	}
 	active, err := h.isAllowed(ctx, uid)
 	if err != nil {
-		h.replyText(m.Chat.ID, "Помилка. Спробуйте пізніше.")
+		h.replyText(m.Chat.ID, "Temporary error. Try again later.")
 		return
 	}
 	if !active {
 		if text == "" || strings.HasPrefix(text, "/") {
-			h.requestAccessCode(m.Chat.ID, "🔐 Введіть код доступу:")
+			h.requestAccessCode(m.Chat.ID, "Enter access code:")
 			return
 		}
 		ok, err := h.db.ActivateByCode(ctx, uid, h.cfg.AccessCode, text)
 		if err != nil {
-			h.replyText(m.Chat.ID, "Помилка авторизації. Спробуйте пізніше.")
+			h.replyText(m.Chat.ID, "Authorization failed. Try again later.")
 			return
 		}
 		if !ok {
-			h.requestAccessCode(m.Chat.ID, "❌ Невірний код. Спробуйте ще раз:")
+			h.requestAccessCode(m.Chat.ID, "Invalid code. Try again:")
 			return
 		}
-		h.replyText(m.Chat.ID, "✅ Доступ підтверджено.")
+		h.replyText(m.Chat.ID, "Access granted.")
 		h.showCategories(m.Chat.ID)
 		return
 	}
-	h.replyText(m.Chat.ID, "Використай /categories.")
+	h.replyText(m.Chat.ID, "Use /categories.")
 }
 
 func (h *Handler) handleStart(ctx context.Context, m *tgbotapi.Message, uid int64, code string) {
 	if code == "" {
 		active, err := h.isAllowed(ctx, uid)
 		if err != nil {
-			h.replyText(m.Chat.ID, "Помилка. Спробуйте пізніше.")
+			h.replyText(m.Chat.ID, "Temporary error. Try again later.")
 			return
 		}
 		if !active {
-			h.requestAccessCode(m.Chat.ID, "🔐 Введіть код доступу:")
+			h.requestAccessCode(m.Chat.ID, "Enter access code:")
 			return
 		}
 		h.showCategories(m.Chat.ID)
@@ -117,14 +115,14 @@ func (h *Handler) handleStart(ctx context.Context, m *tgbotapi.Message, uid int6
 	}
 	ok, err := h.db.ActivateByCode(ctx, uid, h.cfg.AccessCode, code)
 	if err != nil {
-		h.replyText(m.Chat.ID, "Помилка авторизації. Спробуйте пізніше.")
+		h.replyText(m.Chat.ID, "Authorization failed. Try again later.")
 		return
 	}
 	if !ok {
-		h.requestAccessCode(m.Chat.ID, "❌ Невірний код. Спробуйте ще раз:")
+		h.requestAccessCode(m.Chat.ID, "Invalid code. Try again:")
 		return
 	}
-	h.replyText(m.Chat.ID, "✅ Доступ підтверджено.")
+	h.replyText(m.Chat.ID, "Access granted.")
 	h.showCategories(m.Chat.ID)
 }
 
@@ -133,7 +131,7 @@ func (h *Handler) requestAccessCode(chatID int64, text string) {
 	msg.ReplyMarkup = tgbotapi.ForceReply{
 		ForceReply:            true,
 		Selective:             true,
-		InputFieldPlaceholder: "Код доступу",
+		InputFieldPlaceholder: "Access code",
 	}
 	if _, err := h.bot.Send(msg); err != nil {
 		log.Printf("request access code failed: %v", err)
@@ -143,9 +141,6 @@ func (h *Handler) requestAccessCode(chatID int64, text string) {
 func (h *Handler) isAllowed(ctx context.Context, uid int64) (bool, error) {
 	active, _, err := h.db.IsActive(ctx, uid)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return false, nil
-		}
 		return false, err
 	}
 	return active, nil
@@ -157,10 +152,10 @@ func (h *Handler) showCategories(chatID int64) {
 	cats, err := h.db.ListCategories(ctx)
 	if err != nil {
 		log.Printf("list categories failed: %v", err)
-		h.replyText(chatID, "Не вдалося завантажити категорії.")
+		h.replyText(chatID, "Failed to load categories.")
 		return
 	}
-	msg := tgbotapi.NewMessage(chatID, "Категорії")
+	msg := tgbotapi.NewMessage(chatID, "Categories")
 	msg.ReplyMarkup = CategoriesKeyboard(cats)
 	if _, err := h.bot.Send(msg); err != nil {
 		log.Printf("send categories failed: %v", err)
@@ -169,7 +164,7 @@ func (h *Handler) showCategories(chatID int64) {
 
 func (h *Handler) onCallback(q *tgbotapi.CallbackQuery) {
 	if q.Message == nil {
-		h.answerCallback(q.ID, "Немає чату для відповіді")
+		h.answerCallback(q.ID, "No chat to reply")
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
@@ -178,7 +173,7 @@ func (h *Handler) onCallback(q *tgbotapi.CallbackQuery) {
 	chatID := q.Message.Chat.ID
 	active, err := h.isAllowed(ctx, uid)
 	if err != nil || !active {
-		h.answerCallback(q.ID, "Немає доступу")
+		h.answerCallback(q.ID, "No access")
 		return
 	}
 	data := q.Data
@@ -188,36 +183,36 @@ func (h *Handler) onCallback(q *tgbotapi.CallbackQuery) {
 	case strings.HasPrefix(data, cbCatPrefix):
 		catID, err := strconv.ParseInt(strings.TrimPrefix(data, cbCatPrefix), 10, 64)
 		if err != nil {
-			h.answerCallback(q.ID, "Невірна категорія")
+			h.answerCallback(q.ID, "Invalid category")
 			return
 		}
 		h.showArticles(chatID, catID, 0)
 	case strings.HasPrefix(data, cbCatPagePref):
 		parts := strings.Split(strings.TrimPrefix(data, cbCatPagePref), ":")
 		if len(parts) != 2 {
-			h.answerCallback(q.ID, "Невірна навігація")
+			h.answerCallback(q.ID, "Invalid navigation")
 			return
 		}
 		catID, err := strconv.ParseInt(parts[0], 10, 64)
 		if err != nil {
-			h.answerCallback(q.ID, "Невірна категорія")
+			h.answerCallback(q.ID, "Invalid category")
 			return
 		}
 		offset, err := strconv.Atoi(parts[1])
 		if err != nil || offset < 0 {
-			h.answerCallback(q.ID, "Невірна сторінка")
+			h.answerCallback(q.ID, "Invalid page")
 			return
 		}
 		h.showArticles(chatID, catID, offset)
 	case strings.HasPrefix(data, cbArtPrefix):
 		artID, err := strconv.ParseInt(strings.TrimPrefix(data, cbArtPrefix), 10, 64)
 		if err != nil {
-			h.answerCallback(q.ID, "Невірна стаття")
+			h.answerCallback(q.ID, "Invalid article")
 			return
 		}
 		h.showArticle(chatID, artID)
 	default:
-		h.answerCallback(q.ID, "Невідома дія")
+		h.answerCallback(q.ID, "Unknown action")
 		return
 	}
 	h.answerCallback(q.ID, "")
@@ -229,10 +224,10 @@ func (h *Handler) showArticles(chatID, catID int64, offset int) {
 	arts, err := h.db.ListArticlesByCategory(ctx, catID, pageSize, offset)
 	if err != nil {
 		log.Printf("list articles failed: %v", err)
-		h.replyText(chatID, "Не вдалося завантажити вкладки.")
+		h.replyText(chatID, "Failed to load articles.")
 		return
 	}
-	msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("Вкладки (сторінка %d)", offset/pageSize+1))
+	msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("Articles (page %d)", offset/pageSize+1))
 	msg.ReplyMarkup = ArticlesKeyboard(catID, offset, pageSize, arts)
 	if _, err := h.bot.Send(msg); err != nil {
 		log.Printf("send articles failed: %v", err)
@@ -244,7 +239,7 @@ func (h *Handler) showArticle(chatID, artID int64) {
 	defer cancel()
 	a, err := h.db.GetArticle(ctx, artID)
 	if err != nil {
-		h.replyText(chatID, "Не вдалося відкрити матеріал.")
+		h.replyText(chatID, "Failed to open article.")
 		return
 	}
 	chunks := splitByLen("<b>"+escapeHTML(a.Title)+"</b><br><br>"+a.Body, 3500)

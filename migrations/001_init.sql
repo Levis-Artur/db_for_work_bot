@@ -25,13 +25,13 @@ CREATE TABLE IF NOT EXISTS articles (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_articles_category_title ON articles(category_id, title);
 INSERT INTO categories(name, sort_order) VALUES
-('Тема 1', 10),
-('Тема 2', 20),
-('Тема 3', 30)
+('Topic 1', 10),
+('Topic 2', 20),
+('Topic 3', 30)
 ON CONFLICT (name) DO NOTHING;
 INSERT INTO articles(category_id, title, body, sort_order)
-SELECT c.id, 'Вступ', '<b>Вітаю!</b><br>Тут буде база знань.', 10
+SELECT c.id, 'Welcome', '<b>Hello!</b><br>This is your knowledge base.', 10
 FROM categories c
-WHERE c.name = 'Тема 1'
+WHERE c.name = 'Topic 1'
 ON CONFLICT (category_id, title) DO NOTHING;
 COMMIT;
